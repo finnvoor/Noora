@@ -3,13 +3,16 @@ import Noora
 class MockTerminal: Terminaling {
     var isInteractive: Bool = true
     var isColored: Bool = true
+    var size: TerminalSize? = nil
 
     init(
         isInteractive: Bool = true,
-        isColored: Bool = true
+        isColored: Bool = true,
+        size: TerminalSize? = nil
     ) {
         self.isInteractive = isInteractive
         self.isColored = isColored
+        self.size = size
     }
 
     func inRawMode(_ body: @escaping () throws -> Void) rethrows {

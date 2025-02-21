@@ -9,14 +9,22 @@ import Foundation
 public protocol Terminaling {
     var isInteractive: Bool { get }
     var isColored: Bool { get }
+    var size: TerminalSize? { get }
     func withoutCursor(_ body: () throws -> Void) rethrows
     func inRawMode(_ body: @escaping () throws -> Void) rethrows
     func readCharacter() -> Character?
 }
 
+public struct TerminalSize {
+    let rows: Int
+    let columns: Int
+}
+
 public struct Terminal: Terminaling {
     public let isInteractive: Bool
     public let isColored: Bool
+
+    public var size: TerminalSize? { Terminal.size() }
 
     public init(isInteractive: Bool = Terminal.isInteractive(), isColored: Bool = Terminal.isColored()) {
         self.isInteractive = isInteractive
@@ -103,6 +111,16 @@ public struct Terminal: Terminaling {
             return false
         } else {
             return true
+        }
+    }
+
+    /// Returns the size of the terminal if available.
+    public static func size() -> TerminalSize? {
+        var w = winsize()
+        if ioctl(STDOUT_FILENO, UInt(TIOCGWINSZ), &w) == 0 {
+            return TerminalSize(rows: Int(w.ws_row), columns: Int(w.ws_col))
+        } else {
+            return nil
         }
     }
 }

@@ -27,4 +27,8 @@ class MockTerminal: Terminaling {
     func readCharacter() -> Character? {
         characters.removeFirst()
     }
+
+    func readCharacterNonBlocking() -> Character? {
+        nil
+    }
 }

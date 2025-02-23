@@ -13,6 +13,7 @@ public protocol Terminaling {
     func withoutCursor(_ body: () throws -> Void) rethrows
     func inRawMode(_ body: @escaping () throws -> Void) rethrows
     func readCharacter() -> Character?
+    func readCharacterNonBlocking() -> Character?
 }
 
 public struct Terminal: Terminaling {
@@ -86,6 +87,25 @@ public struct Terminal: Terminaling {
         let char = getchar() // Read single character
 
         tcsetattr(fileno(stdin), TCSANOW, &original) // Restore original settings
+        return char != EOF ? Character(UnicodeScalar(UInt8(char))) : nil
+    }
+
+    public func readCharacterNonBlocking() -> Character? {
+        var term = termios()
+        tcgetattr(fileno(stdin), &term) // Get terminal attributes
+        var original = term
+
+        let flags = fcntl(fileno(stdin), F_GETFL)
+        _ = fcntl(fileno(stdin), F_SETFL, flags | O_NONBLOCK) // Set non-blocking mode
+
+        term.c_lflag &= ~tcflag_t(ECHO | ICANON) // Disable echo & canonical mode
+        tcsetattr(fileno(stdin), TCSANOW, &term) // Apply changes
+
+        let char = getchar() // Read single character
+
+        _ = fcntl(fileno(stdin), F_SETFL, flags)
+        tcsetattr(fileno(stdin), TCSANOW, &original) // Restore original settings
+
         return char != EOF ? Character(UnicodeScalar(UInt8(char))) : nil
     }
 

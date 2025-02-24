@@ -23,6 +23,13 @@ class MockTerminal: Terminaling {
         try body()
     }
 
+    func withMouseTracking(
+        trackMotion: Bool,
+        _ body: () throws -> Void
+    ) rethrows {
+        try body()
+    }
+
     var characters: [Character] = []
     func readCharacter() -> Character? {
         characters.removeFirst()

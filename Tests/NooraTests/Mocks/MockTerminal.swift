@@ -4,6 +4,8 @@ class MockTerminal: Terminaling {
     var isInteractive: Bool = true
     var isColored: Bool = true
     var size: TerminalSize? = nil
+    private var currentRow: Int = 1
+    private var currentColumn: Int = 1
 
     init(
         isInteractive: Bool = true,
@@ -23,6 +25,10 @@ class MockTerminal: Terminaling {
         try body()
     }
 
+    func withMouseTracking(_ body: () throws -> Void) rethrows {
+        try body()
+    }
+
     var characters: [Character] = []
     func readCharacter() -> Character? {
         characters.removeFirst()
@@ -30,5 +36,15 @@ class MockTerminal: Terminaling {
 
     func readCharacterNonBlocking() -> Character? {
         nil
+    }
+
+    func cursorPosition() -> TerminalPosition {
+        TerminalPosition(row: currentRow, column: currentColumn)
+    }
+
+    // For tests to set cursor position
+    func setCursor(row: Int, column: Int) {
+        currentRow = row
+        currentColumn = column
     }
 }

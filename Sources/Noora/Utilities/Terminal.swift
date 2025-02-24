@@ -12,13 +12,30 @@ public protocol Terminaling {
     var size: TerminalSize? { get }
     func withoutCursor(_ body: () throws -> Void) rethrows
     func inRawMode(_ body: @escaping () throws -> Void) rethrows
+    func withMouseTracking(_ body: () throws -> Void) rethrows
     func readCharacter() -> Character?
     func readCharacterNonBlocking() -> Character?
+    func cursorPosition() -> TerminalPosition
+}
+
+public struct TerminalPosition {
+    public let row: Int
+    public let column: Int
+
+    public init(row: Int, column: Int) {
+        self.row = row
+        self.column = column
+    }
 }
 
 public struct TerminalSize {
-    let rows: Int
-    let columns: Int
+    public let rows: Int
+    public let columns: Int
+
+    public init(rows: Int, columns: Int) {
+        self.rows = rows
+        self.columns = columns
+    }
 }
 
 public struct Terminal: Terminaling {
@@ -32,7 +49,10 @@ public struct Terminal: Terminaling {
         self.isColored = isColored
         for signalType in [SIGINT, SIGTERM, SIGQUIT, SIGHUP] {
             signal(signalType) { _ in
+                // Ensure cursor is visible
                 print("\u{1B}[?25h", terminator: "")
+                // Disable mouse tracking
+                print("\u{1B}[?1003l\u{1B}[?1006l\u{1B}[?1000l", terminator: "")
                 fflush(stdout)
                 exit(0)
             }
@@ -56,6 +76,36 @@ public struct Terminal: Terminaling {
     /// Restores the cursor in the terminal.
     public func showCursor() {
         print("\u{1B}[?25h", terminator: "")
+        fflush(stdout)
+    }
+
+    /// Runs a block of code with mouse tracking enabled, disabling it afterwards.
+    /// - Parameter body: The closure to execute with mouse tracking enabled.
+    public func withMouseTracking(_ body: () throws -> Void) rethrows {
+        enableMouseTracking()
+        defer { disableMouseTracking() }
+        try body()
+    }
+
+    /// Enables mouse tracking in the terminal.
+    public func enableMouseTracking() {
+        // Enable SGR mouse mode for better event reporting
+        print("\u{1B}[?1006h", terminator: "")
+        // Enable basic mouse tracking (clicks)
+        print("\u{1B}[?1000h", terminator: "")
+        // Enable motion tracking
+        print("\u{1B}[?1003h", terminator: "")
+        fflush(stdout)
+    }
+
+    /// Disables mouse tracking in the terminal.
+    public func disableMouseTracking() {
+        // Disable motion tracking
+        print("\u{1B}[?1003l", terminator: "")
+        // Disable SGR mouse mode
+        print("\u{1B}[?1006l", terminator: "")
+        // Disable basic mouse tracking
+        print("\u{1B}[?1000l", terminator: "")
         fflush(stdout)
     }
 
@@ -147,5 +197,42 @@ public struct Terminal: Terminaling {
         } else {
             return nil
         }
+    }
+
+    public func cursorPosition() -> TerminalPosition {
+        // Save current terminal settings
+        var oldSettings = termios()
+        tcgetattr(STDIN_FILENO, &oldSettings)
+
+        // Enable raw mode temporarily
+        var newSettings = oldSettings
+        newSettings.c_lflag &= ~UInt(ICANON | ECHO)
+        tcsetattr(STDIN_FILENO, TCSANOW, &newSettings)
+
+        // Query cursor position
+        print("\u{1B}[6n", terminator: "")
+        fflush(stdout)
+
+        // Read response
+        var response = ""
+        while let char = readCharacter() {
+            response.append(char)
+            if char == "R" { break }
+        }
+
+        // Restore terminal settings
+        tcsetattr(STDIN_FILENO, TCSANOW, &oldSettings)
+
+        // Parse response (format is ESC[row;columnR)
+        let parts = response.dropFirst(2) // Drop ESC[
+            .dropLast() // Drop R
+            .split(separator: ";")
+            .compactMap { Int($0) }
+
+        guard parts.count == 2 else {
+            return TerminalPosition(row: 0, column: 0) // Fallback if parsing fails
+        }
+
+        return TerminalPosition(row: parts[0], column: parts[1])
     }
 }
